@@ -1,0 +1,29 @@
+#!/bin/bash
+case "$(uname -s)" in
+    Darwin)
+        chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        interface="en1"
+        inet_field="inet "
+        ip=`ifconfig $interface | grep "$inet_field" | awk '{print $2}'`
+        ;;
+    Linux)
+        chrome="google-chrome"
+        interface="wlp3s0"
+        inet_field="inet "
+        ip=`ifconfig $interface | grep "$inet_field" | awk -F ':'  '{print $2}' | awk '{print $1}'`
+        ;;
+    *)
+        echo "not supported on os other than osx / linux" 2>&1
+        exit 0
+        ;;
+esac
+
+port=8000
+url="http://$ip:$port/"
+
+"$chrome" --args \
+    --incognito \
+    --js-flags="--trace-opt --trace-deopt --trace-bailout" \
+    --enable-memory-benchmarking \
+    --enable-precise-memory-info \
+    $url

@@ -1,0 +1,15 @@
+#!/bin/bash
+case "$(uname -s)" in
+    Darwin)
+        ;;
+    Linux)
+        while true; do
+            inotifywait -e close_write --exclude "Session.vim" -r pyapp
+            scripts/test
+        done
+        ;;
+    *)
+        echo "not supported on os other than osx / linux" 2>&1
+        exit 0
+        ;;
+esac
