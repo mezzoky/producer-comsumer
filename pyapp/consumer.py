@@ -1,68 +1,112 @@
 import time
 
-import pika
-
-from params import build_params
-
-
-def ack_callback(channel, method, properties, body):
-    '''
-    even if you kill a worker while it was processing a message,
-    nothing will be lost.
-    Soon after the worker dies all unacknowledged messages will be redelivered.
-    '''
-    work(body)
-    channel.basic_ack(delivery_tag=method.delivery_tag)
+from params import get_rabbit
+from params import get_exchange
+from params import get_queuename
 
 
-def callback(channel, method, properties, body):
-    work(body)
+class Consumer:
+
+    no_ack = True
+
+    def __init__(self):
+        channel, connection = get_rabbit()
+        self.declare(channel)
+
+        '''
+        Rabbitmq dispatch task immediately when the task enter the queue
+        Use basic_qos prefetch_count to tell rabbitmq not to give more than N
+        messages to a worker at a time.
+        In order words, rabbitmq dont dispatch new messages to a worker until
+        it has processed and acknowledged the previous messages.
+        Instead, it will dispatch it to the next worker that is not still busy.
+        '''
+        self.consume(channel)
+        channel.start_consuming()
+
+    def work(self, body):
+        module_name = self.__class__.__name__
+        print('{} taking work'.format(module_name), body)
+        time.sleep(body.count(b'.'))
+        print('{} work done'.format(module_name), body)
+
+    def declare(self, channel):
+        raise NotImplementedError()
 
 
-def work(body):
-    print('taking work', body)
-    time.sleep(body.count(b'.'))
-    print('work done', body)
+class ConsumerQueue(Consumer):
+
+    queuename = get_queuename()
+
+    def declare(self, channel):
+        channel.queue_declare(
+            **self.queuename
+        )
+
+    def consume(self, channel):
+        channel.basic_qos(prefetch_count=1)
+        channel.basic_consume(
+            self.callback,
+            queue=self.queuename.get('queue'),
+            no_ack=self.no_ack
+        )
+
+    def callback(self, channel, method, properties, body):
+        self.work(body)
 
 
-def ack_consume(channel):
-    channel.basic_consume(
-        ack_callback,
-        queue='mezzoky',
-        no_ack=False
-    )
+class ConsumerQueueAck(ConsumerQueue):
+
+    no_ack = False
+
+    def callback(self, channel, method, properties, body):
+        '''
+        even if you kill a worker while it was processing a message,
+        nothing will be lost.
+        Soon after the worker dies all unacknowledged messages will be
+        redelivered.
+        '''
+        self.work(body)
+        channel.basic_ack(
+            delivery_tag=method.delivery_tag
+        )
 
 
-def consume(channel):
-    channel.basic_consume(
-        callback,
-        queue='mezzoky',
-        no_ack=True
-    )
+class ConsumerExchange(Consumer):
 
+    exchange = get_exchange()
 
-def consumer():
-    params = build_params()
+    def __init__(self):
+        pass
 
-    connection = pika.BlockingConnection(params)
-    channel = connection.channel()
-    channel.queue_declare(queue='mezzoky', durable=True)
+    def consume(self, channel):
+        '''
+        exclusive=True: once we disconnect the consumer the queue should be deleted.
+        '''
+        result = channel.queue_declare(exclusive=True)
+        queue_name = result.method.queue
 
-    '''
-    Rabbitmq dispatch task immediately when the task enter the queue
-    Use basic_qos prefetch_count to tell rabbitmq not to give more than N
-    messages to a worker at a time.
-    In order words, rabbitmq dont dispatch new messages to a worker until
-    it has processed and acknowledged the previous messages.
-    Instead, it will dispatch it to the next worker that is not still busy.
-    '''
-    channel.basic_qos(prefetch_count=1)
-    ack_consume(channel)
-    channel.start_consuming()
+        '''
+        Now we need to tell the exchange to send messages to our queue.
+        That relationship between exchange and a queue is called a binding.
+        '''
+        channel.queue_bind(
+            exchange=self.exchange.get('exchange'),
+            queue=queue_name
+        )
+        channel.basic_consume(
+            self.callback,
+            queue=self.queuename,
+            no_ack=self.no_ack
+        )
+
+    def declare(self, channel):
+        channel.exchange_declare(**self.exchange)
 
 
 def main():
-    consumer()
+    ConsumerQueueAck()
+    ConsumerExchange()
 
 
 if __name__ == '__main__':

@@ -16,3 +16,28 @@ def build_params() -> pika.ConnectionParameters:
         retry_delay=5
     )
     return params
+
+
+def get_rabbit():
+    params = build_params()
+    connection = pika.BlockingConnection(params)
+    channel = connection.channel()
+    return channel, connection
+
+
+def get_exchange():
+    return {
+        'exchange': 'mezz-exchange',
+        'type': 'fanout'
+    }
+
+
+def get_queuename():
+    '''
+    durable=True ensures task isnt lost even the rabbitmq server restarted,
+    which differ from basic_ack (from consumer)
+    '''
+    return {
+        'queue': 'mezz-queue',
+        'durable': True
+    }
