@@ -2,7 +2,8 @@ main: stop up logs
 
 up:
 	docker-compose up -d
-	docker-compose scale worker=3
+	docker-compose scale queue-worker=2
+	docker-compose scale exchange-worker=2
 
 build:
 	docker-compose build
@@ -21,4 +22,4 @@ list:
 restart: stop up
 
 logs:
-	COMPOSE_HTTP_TIMEOUT=600000 docker-compose logs -f worker
+	COMPOSE_HTTP_TIMEOUT=600000 docker-compose logs -f

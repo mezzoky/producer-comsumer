@@ -33,6 +33,9 @@ class Consumer:
     def declare(self, channel):
         raise NotImplementedError()
 
+    def callback(self, channel, method, properties, body):
+        self.work(body)
+
 
 class ConsumerQueue(Consumer):
 
@@ -50,9 +53,6 @@ class ConsumerQueue(Consumer):
             queue=self.queuename.get('queue'),
             no_ack=self.no_ack
         )
-
-    def callback(self, channel, method, properties, body):
-        self.work(body)
 
 
 class ConsumerQueueAck(ConsumerQueue):
@@ -76,9 +76,6 @@ class ConsumerExchange(Consumer):
 
     exchange = get_exchange()
 
-    def __init__(self):
-        pass
-
     def consume(self, channel):
         '''
         exclusive=True: once we disconnect the consumer the queue should be deleted.
@@ -96,18 +93,9 @@ class ConsumerExchange(Consumer):
         )
         channel.basic_consume(
             self.callback,
-            queue=self.queuename,
+            queue=queue_name,
             no_ack=self.no_ack
         )
 
     def declare(self, channel):
         channel.exchange_declare(**self.exchange)
-
-
-def main():
-    ConsumerQueueAck()
-    ConsumerExchange()
-
-
-if __name__ == '__main__':
-    main()

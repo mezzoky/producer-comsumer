@@ -89,12 +89,3 @@ class ProducerExchange(Producer):
 
     def declare(self, channel):
         channel.exchange_declare(**self.exchange)
-
-
-def main():
-    ProducerQueue()
-    ProducerExchange()
-
-
-if __name__ == '__main__':
-    main()
