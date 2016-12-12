@@ -13,11 +13,12 @@ rabbitmqctl list_bindings
 
 
 import pika
-from params import get_rabbit
-from params import get_exchange
-from params import get_queuename
+import uuid
 
-exchange = get_exchange()
+from params import get_rabbit
+from params import rpc_queuename
+from params import Tpl as BaseTpl
+from params import ClassNameMixin
 
 
 class Store:
@@ -33,7 +34,8 @@ class DeliveryMode:
     '''
     refs:
     - https://www.rabbitmq.com/persistence-conf.html
-    - https://www.rabbitmq.com/releases/rabbitmq-java-client/current-javadoc/com/rabbitmq/client/MessageProperties.html
+    - https://www.rabbitmq.com/releases/rabbitmq-java-client\
+            /current-javadoc/com/rabbitmq/client/MessageProperties.html
     persistent: write to disk as they reach the queue
     transient: only write to disk when evicted from memory
     under memory pressure
@@ -42,30 +44,39 @@ class DeliveryMode:
     transient = 1
 
 
-class Producer:
-    queuename = {}
+class Tpl(BaseTpl):
+    _start = 'SENDING TASK'
+    _end = 'SENT TASK'
+
+
+class Producer(ClassNameMixin):
     exchange = {}
+    routing_key = ''
 
     def __init__(self):
         channel, connection = get_rabbit()
+        self.run(channel, connection)
+
+    def run(self, channel, connection):
         self.declare(channel)
 
-        message = '{}....'.format(Store.incr())
+        task = self.gen_task()
+        Tpl.start(str(self), task)
 
-        route = self.get_routing(message)
+        route = self.get_routing(task)
         channel.basic_publish(**route)
 
-        print('Sent content =[{}]'.format(message))
+        Tpl.end(str(self), task)
         connection.close()
 
     def declare(self, channel):
         raise NotImplementedError()
 
-    def get_routing(self, message):
+    def get_routing(self, body):
         route = {
             'exchange': self.exchange.get('exchange', ''),
-            'routing_key': self.queuename.get('queue', ''),
-            'body': message,
+            'routing_key': self.routing_key,
+            'body': body,
             'properties': self.get_properties()
         }
         return route
@@ -76,16 +87,64 @@ class Producer:
         )
         return properties
 
-
-class ProducerQueue(Producer):
-    queuename = get_queuename()
-
-    def declare(self, channel):
-        channel.queue_declare(**self.queuename)
+    @classmethod
+    def gen_task(self):
+        message = 'ID:{} ....'.format(Store.incr())
+        return message
 
 
-class ProducerExchange(Producer):
-    exchange = get_exchange()
+class ProducerRPC(Producer):
 
-    def declare(self, channel):
-        channel.exchange_declare(**self.exchange)
+    routing_key = rpc_queuename().get('queue')
+
+    def __init__(self):
+
+        self.queue_name = ''
+        self.corr_id = ''
+        self.response = None
+        self.channel = None
+        self.connection = None
+
+        super(ProducerRPC, self).__init__()
+
+    def run(self, channel, connection):
+        result = channel.queue_declare(exclusive=True)
+        self.queue_name = result.method.queue
+
+        channel.basic_consume(
+            self.on_response,
+            no_ack=True,
+            queue=self.queue_name
+        )
+
+        self.channel = channel
+        self.connection = connection
+
+    def on_response(self, channel, method, props, body):
+        Tpl.end(str(self), 'x::Received fib = {} {} {}'.format(
+            body, self.corr_id, props.correlation_id
+        ))
+        if self.corr_id == props.correlation_id:
+            Tpl.end(str(self), 'Received fib = {}'.format(body))
+            self.response = body
+
+    def call(self, n):
+        self.corr_id = str(uuid.uuid4())
+        routing = self.get_routing(str(n))
+        Tpl.start(str(self), 'Requesting fib({} {})'.format(n, routing))
+
+        self.channel.basic_publish(
+            **routing
+        )
+        while self.response is None:
+            self.connection.process_data_events()
+
+        return int(self.response)
+
+    def get_properties(self):
+        properties = pika.BasicProperties(
+            delivery_mode=DeliveryMode.persistent,
+            reply_to=self.queue_name,
+            correlation_id=self.corr_id
+        )
+        return properties

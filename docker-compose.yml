@@ -7,12 +7,12 @@ services:
     producer:
         build: ./pyapp
         image: prodcon-pyapp:1.0
-        tty: true
         links:
             - rabbitmq:rabbitmq
         volumes:
             - ./pyapp:/usr/src/app
-        command: python /usr/src/app/producer.py
+        # command: python /usr/src/app/producer.py
+        command: echo 1
 
     queue-worker:
         build: ./pyapp
@@ -22,7 +22,27 @@ services:
             - rabbitmq:rabbitmq
         volumes:
             - ./pyapp:/usr/src/app
-        command: python /usr/src/app/consumer_queue.py
+        command: python /usr/src/app/consumer_queue.py queue
+
+    queue-ack-worker:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_queue.py queue-ack
+
+    rpc-worker:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_queue.py rpc
 
     exchange-worker:
         build: ./pyapp
@@ -33,3 +53,83 @@ services:
         volumes:
             - ./pyapp:/usr/src/app
         command: python /usr/src/app/consumer_exchange.py
+
+    direct-exchange-worker-a:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_direct_exchange.py a
+
+    direct-exchange-worker-b:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_direct_exchange.py b
+
+    direct-exchange-worker-c:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_direct_exchange.py c
+
+    direct-exchange-worker-any:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_direct_exchange.py any
+
+    topic-exchange-worker-any:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_topic_exchange.py any
+
+    topic-exchange-worker-kern:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_topic_exchange.py kern
+
+    topic-exchange-worker-critical:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_topic_exchange.py critical
+
+    topic-exchange-worker-kerncritical:
+        build: ./pyapp
+        image: prodcon-pyapp:1.0
+        tty: true
+        links:
+            - rabbitmq:rabbitmq
+        volumes:
+            - ./pyapp:/usr/src/app
+        command: python /usr/src/app/consumer_topic_exchange.py kerncritical
