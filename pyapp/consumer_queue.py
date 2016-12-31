@@ -26,6 +26,8 @@ class ConsumerQueue(Consumer):
         it has processed and acknowledged the previous messages.
         Instead, it will dispatch it to the next worker that is not still busy.
         '''
+
+        self.queue_name = self.queuename.get('queue')
         channel.basic_qos(prefetch_count=1)
         channel.basic_consume(
             self.callback,
@@ -45,7 +47,7 @@ class ConsumerQueueAck(ConsumerQueue):
         Soon after the worker dies all unacknowledged messages will be
         redelivered.
         '''
-        self.do_task(str(body))
+        self.do_task(channel, method, properties, body)
         channel.basic_ack(
             delivery_tag=method.delivery_tag
         )

@@ -43,10 +43,10 @@ class ProducerTopicExchange(ProducerExchange):
 if __name__ == '__main__':
     ProducerQueue()
     ProducerExchange()
-    ProducerDirectExchange()
-    ProducerDirectExchangeB()
-    ProducerDirectExchangeC()
-    ProducerTopicExchange()
+    # ProducerDirectExchange()
+    # ProducerDirectExchangeB()
+    # ProducerDirectExchangeC()
+    # ProducerTopicExchange()
 
-    rpc = ProducerRPC()
-    rpc.call(5)
+    # rpc = ProducerRPC()
+    # rpc.call(5)

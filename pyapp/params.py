@@ -1,7 +1,12 @@
+import socket
+import json
+from urllib import request
+from urllib import parse
+
 import pika
 
 
-def build_params() -> pika.ConnectionParameters:
+def build_params():
     credentials = pika.PlainCredentials(
         username='guest',
         password='guest'
@@ -64,21 +69,58 @@ def rpc_queuename():
     }
 
 
-class Tpl:
+class Method:
+    server_ready = 'server_ready'
+    server_shutdown = 'server_shutdown'
+    delivering_task = 'delivering_task'
+    delivered_task = 'delivered_task'
+    taking_task = 'taking_task'
+    completed_task = 'completed_task'
 
-    _start = ''
-    _end = ''
-    _tpl = '[{}][{}]:'
 
-    @classmethod
-    def start(cls, module_name, *args):
-        msg = cls._tpl.format(cls._start, module_name)
-        print(msg, *args)
+class Notify:
+    endpoint = ''
+    method = Method
 
-    @classmethod
-    def end(cls, module_name, *args):
-        msg = cls._tpl.format(cls._end, module_name)
-        print(msg, *args)
+    def __init__(self, target_instance):
+        self.module = target_instance
+        self.name = str(target_instance)
+
+    def _send(self, method, data):
+        data = {
+            'payload': json.dumps(data),
+            'method': method,
+        }
+        encoded = parse.urlencode(data)
+        url = 'http://web:8888/{}'.format(self.endpoint)
+        url += '?' + encoded
+        request.urlopen(url)
+
+    def _make(self, method, id, task=None, **kwargs):
+        data = {
+            'hostname': socket.gethostname(),
+            'module': self.name,
+            'id': id,
+            'status': method,
+        }
+
+        if task is not None:
+            data['task'] = task
+
+        properties = kwargs.pop('properties', None)
+        if properties:
+            data['delivery_mode'] = properties.delivery_mode
+            data['reply_to'] = properties.reply_to
+            data['correlation_id'] = properties.correlation_id
+
+        data.update(kwargs)
+        self._send(method, data)
+
+    def server_ready(self, *args, **kwargs):
+        self._make(self.method.server_ready, *args, **kwargs)
+
+    def server_shutdown(self, *args, **kwargs):
+        self._make(self.method.server_shutdown, *args, **kwargs)
 
 
 class ClassNameMixin:

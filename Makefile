@@ -1,8 +1,9 @@
-main: stop up logs
+main: fstop up logs
 
 up:
+	docker-compose up -d web
 	docker-compose up -d
-	docker-compose scale queue-worker=2 exchange-worker=2
+	# docker-compose scale queue-worker=2 exchange-worker=2
 
 build:
 	docker-compose build
@@ -11,8 +12,11 @@ stop:
 	docker-compose stop
 	docker-compose rm -f
 
+fstop:
+	docker ps -qa | xargs -i docker rm -f {}
+
 watch:
-	scripts/watch
+	bin/watch
 
 list:
 	# docker-compose exec rabbitmq rabbitmqctl list_queues
@@ -24,4 +28,4 @@ logs:
 	COMPOSE_HTTP_TIMEOUT=600000 docker-compose logs -f | grep -v rabbitmq
 
 test:
-	scripts/test
+	bin/test

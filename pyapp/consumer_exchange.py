@@ -7,7 +7,6 @@ class ConsumerExchange(Consumer):
     exchange = fanout_exchange()
 
     def __init__(self):
-        self.queue_name = ''
         super(ConsumerExchange, self).__init__()
 
     def declare(self, channel):

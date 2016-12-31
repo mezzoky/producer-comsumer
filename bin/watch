@@ -4,8 +4,8 @@ case "$(uname -s)" in
         ;;
     Linux)
         while true; do
-            inotifywait -e close_write --exclude "Session.vim" -r pyapp
-            scripts/test
+            inotifywait -e close_write --exclude "Session.vim" -r ./
+            bin/test
         done
         ;;
     *)

@@ -11,22 +11,23 @@ rabbitmqctl list_exchanges
 rabbitmqctl list_bindings
 '''
 
+import json
+import uuid
 
 import pika
-import uuid
 
 from params import get_rabbit
 from params import rpc_queuename
-from params import Tpl as BaseTpl
+from params import Notify as BaseNotify
 from params import ClassNameMixin
 
 
 class Store:
-    counter = 0
+    counter = ''
 
     @classmethod
     def incr(cls):
-        cls.counter += 1
+        cls.counter = str(uuid.uuid4())
         return cls.counter
 
 
@@ -44,9 +45,14 @@ class DeliveryMode:
     transient = 1
 
 
-class Tpl(BaseTpl):
-    _start = 'SENDING TASK'
-    _end = 'SENT TASK'
+class Notify(BaseNotify):
+    endpoint = 'producer'
+
+    def delivering_task(self, *args, **kwargs):
+        self._make(self.method.delivering_task, *args, **kwargs)
+
+    def delivered_task(self, *args, **kwargs):
+        self._make(self.method.delivered_task, *args, **kwargs)
 
 
 class Producer(ClassNameMixin):
@@ -54,19 +60,24 @@ class Producer(ClassNameMixin):
     routing_key = ''
 
     def __init__(self):
+        self.notify = Notify(self)
         channel, connection = get_rabbit()
         self.run(channel, connection)
 
     def run(self, channel, connection):
         self.declare(channel)
 
-        task = self.gen_task()
-        Tpl.start(str(self), task)
+        task, id = self.gen_task()
 
         route = self.get_routing(task)
+        self.notify.delivering_task(
+            id,
+            task=task,
+            **route
+        )
         channel.basic_publish(**route)
 
-        Tpl.end(str(self), task)
+        self.notify.delivered_task(id)
         connection.close()
 
     def declare(self, channel):
@@ -89,8 +100,12 @@ class Producer(ClassNameMixin):
 
     @classmethod
     def gen_task(self):
-        message = 'ID:{} ....'.format(Store.incr())
-        return message
+        counter = Store.incr()
+        message = json.dumps({
+            'task': 'tsk ......',
+            'id': counter,
+        })
+        return message, counter
 
 
 class ProducerRPC(Producer):
@@ -121,17 +136,17 @@ class ProducerRPC(Producer):
         self.connection = connection
 
     def on_response(self, channel, method, props, body):
-        Tpl.end(str(self), 'x::Received fib = {} {} {}'.format(
-            body, self.corr_id, props.correlation_id
-        ))
+        # Tpl.end(str(self), 'x::Received fib = {} {} {}'.format(
+        #    body, self.corr_id, props.correlation_id
+        # ))
         if self.corr_id == props.correlation_id:
-            Tpl.end(str(self), 'Received fib = {}'.format(body))
+            # Tpl.end(str(self), 'Received fib = {}'.format(body))
             self.response = body
 
     def call(self, n):
         self.corr_id = str(uuid.uuid4())
         routing = self.get_routing(str(n))
-        Tpl.start(str(self), 'Requesting fib({} {})'.format(n, routing))
+        # Tpl.start(str(self), task='Requesting fib({} {})'.format(n, routing))
 
         self.channel.basic_publish(
             **routing
