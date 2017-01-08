@@ -5,6 +5,8 @@ from urllib import parse
 
 import pika
 
+HOSTNAME = socket.gethostname()
+
 
 def build_params():
     credentials = pika.PlainCredentials(
@@ -98,7 +100,7 @@ class Notify:
 
     def _make(self, method, id, task=None, **kwargs):
         data = {
-            'hostname': socket.gethostname(),
+            'hostname': HOSTNAME,
             'module': self.name,
             'id': id,
             'status': method,

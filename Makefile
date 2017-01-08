@@ -1,7 +1,7 @@
 main: fstop up logs
 
 up:
-	docker-compose up -d web
+	docker-compose up -d web exchange-worker
 	docker-compose up -d
 	# docker-compose scale queue-worker=2 exchange-worker=2
 

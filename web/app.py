@@ -170,10 +170,7 @@ class HomePageHandler(web.RequestHandler):
 class ProducerHandler(web.RequestHandler):
     producers = Producers()
 
-    @web.asynchronous
     def get(self):
-        self.finish()
-
         payload = self.get_argument('payload')
         method = self.get_argument('method')
 
@@ -183,30 +180,36 @@ class ProducerHandler(web.RequestHandler):
             ret = self.producers.register(**payload)
         elif method == 'delivered_task':
             ret = self.producers.update(**payload)
-        logging.info('producer register %s %s')
-        Channel.pub(ret)
+
+        # race condition due to Consumer and Producer share task class variable
+        # ret['hostname'] = payload['hostname']
+        data = {
+            'method': method,
+            'data': ret
+        }
+        Channel.pub(data)
 
 
 class WorkerHandler(web.RequestHandler):
     consumers = Consumers()
 
-    @web.asynchronous
     def get(self):
-        self.finish()
 
         payload = self.get_argument('payload')
         method = self.get_argument('method')
 
         payload = json.loads(payload)
 
-        if method == 'completed_task':
-            logging.info('consumer update')
+        if method in ('completed_task', 'taking_task'):
             ret = self.consumers.update(**payload)
-        elif method == 'taking_task':
-            logging.info('consumer register')
-            ret = self.consumers.register(**payload)
 
-        Channel.pub(ret)
+        # race condition due to Consumer and Producer share task class variable
+        # ret['hostname'] = payload['hostname']
+        data = {
+            'method': method,
+            'data': ret
+        }
+        Channel.pub(data)
 
 
 class WebSocketHandler(websocket.WebSocketHandler):
@@ -221,9 +224,12 @@ class WebSocketHandler(websocket.WebSocketHandler):
         Channel.add(self)
 
         data = {
-            'tasks': ProducerHandler.producers.task,
-            'producer_hosts': ProducerHandler.producers.data,
-            'consumer_hosts': WorkerHandler.consumers.data,
+            'method': 'initialize',
+            'data': {
+                'tasks': ProducerHandler.producers.task,
+                'producer_hosts': ProducerHandler.producers.data,
+                'consumer_hosts': WorkerHandler.consumers.data,
+            }
         }
 
         Channel.pub(data)

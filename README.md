@@ -75,3 +75,8 @@ Update
             worker: worker_1
         }
     - task collection list
+
+# Integration
+- twisted async adapter for rabbitmq consumer?
+- production ready rabbitmq configurations?
+- real world project simulation
